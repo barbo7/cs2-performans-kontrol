@@ -60,6 +60,12 @@ Kasma genelde oyun sırasında ısınma ya da ağ yüzünden olur, o yüzden öl
 
 Steam sesli sohbet "Bağlanıyor"da kalırsa paneldeki **Steam'i yeniden başlat** düğmesi, onay aldıktan sonra Steam'i tamamen kapatıp açar. CS2 açıksa oyun da kapanır.
 
+### Sessiz mod
+
+**Sessiz modu aç** düğmesi işlemciyi yaklaşık yarı hıza sınırlayan ayrı bir güç planına geçer; ısı düşünce fanlar kendiliğinden yavaşlar. Fan devrini doğrudan ayarlamaz. **Sessiz modu kapat** önceki plana döner.
+
+**Gece otomatik sessiz** kutusu her gece 01:30'da açar, 09:30'da kapatır. Saat geldiğinde CS2 açıksa oyun kapanana kadar bekler. Saatler `CS-Sessiz.ps1` dosyasının başındadır.
+
 ### Geri almak
 
 Paneldeki **Geri al** düğmesi ya da `CS-GeriAl.bat`, araçla değiştirilen tüm ayarları eski haline getirir. Kapatılan programlar bilgisayarı yeniden başlatınca ya da programı tekrar açınca kendiliğinden geri gelir.

@@ -133,9 +133,13 @@ $btnKontrol = YeniDugme 'Yeniden kontrol et'
 $btnUygula = YeniDugme 'Seçilenleri uygula'; $btnUygula.Font = $yaziKalin
 $btnGeriAl = YeniDugme 'Geri al'
 $btnSteam = YeniDugme 'Steam''i yeniden başlat'
+$btnSessiz = YeniDugme 'Sessiz modu aç'
 $chkCanli = New-Object Windows.Forms.CheckBox
 $chkCanli.Text = 'Canlı izleme (3 sn)'; $chkCanli.Checked = $true; $chkCanli.AutoSize = $true; $chkCanli.Margin = Kenar 10
 $dugmeler.Controls.Add($chkCanli)
+$chkGece = New-Object Windows.Forms.CheckBox
+$chkGece.AutoSize = $true; $chkGece.Margin = Kenar 10
+$dugmeler.Controls.Add($chkGece)
 $lblDurum = New-Object Windows.Forms.Label
 $lblDurum.AutoSize = $true; $lblDurum.ForeColor = $renk.Gri; $lblDurum.Margin = Kenar 10
 $dugmeler.Controls.Add($lblDurum)
@@ -181,6 +185,7 @@ function Kontrol {
     Durum 'Kontrol ediliyor…'
     $s = Calistir @{ Sessiz = $true; Deneme = $true }
     if ($s) { SonucGoster $s } else { Durum 'Kontrol çalışmadı: CS-Kontrol.ps1 bu dosyayla aynı klasörde olmalı' }
+    SessizGoster
 }
 function IslemMesajlari($s, [string]$bolum) {
     @($s.Sonuclar | Where-Object { $_.Bolum -eq $bolum } | ForEach-Object { "$(SeviyeEtiketi $_.Seviye)  $($_.Mesaj)" }) -join "`r`n`r`n"
@@ -245,6 +250,28 @@ function SteamYeniBaslat {
     } finally { $btnSteam.Enabled = $true }
 }
 $btnSteam.Add_Click({ SteamYeniBaslat })
+
+# ---------------- Sessiz mod ----------------
+$sessizYolu = Join-Path $PSScriptRoot 'CS-Sessiz.ps1'
+function SessizGoster {
+    $d = & $sessizYolu -Durum
+    $btnSessiz.Text = if ($d.Acik) { 'Sessiz modu kapat' } else { 'Sessiz modu aç' }
+    $chkGece.Text = "Gece otomatik sessiz ($($d.Baslangic)-$($d.Bitis))"
+    $chkGece.Checked = $d.Zamanli
+}
+$btnSessiz.Add_Click({
+    $d = & $sessizYolu -Durum
+    if (-not $d.Acik -and @(Get-Process cs2).Count -and -not (Sor "CS2 açık. Sessiz mod işlemciyi yarıya sınırlar, FPS düşer.`r`n`r`nYine de açılsın mı?")) { return }
+    $tamam = if ($d.Acik) { & $sessizYolu -Kapat } else { & $sessizYolu -Ac }
+    if (-not $tamam) { Mesaj 'Güç planı değiştirilemedi.' 'Warning' }
+    Kontrol
+})
+# Click yalnızca kullanıcı tıklayınca çalışır; SessizGoster'in Checked ataması görevleri yeniden kurmaz.
+$chkGece.Add_Click({
+    $tamam = if ($chkGece.Checked) { & $sessizYolu -ZamanlamaAc } else { & $sessizYolu -ZamanlamaKapat }
+    if (-not $tamam) { Mesaj 'Zamanlanmış görev ayarlanamadı.' 'Warning' }
+    SessizGoster
+})
 
 # ---------------- Canlı izleme ----------------
 $script:pinger = New-Object System.Net.NetworkInformation.Ping

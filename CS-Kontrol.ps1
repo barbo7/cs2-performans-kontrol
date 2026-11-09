@@ -183,7 +183,11 @@ if (-not $Sessiz) { Write-Host "CS2 kasma kontrolü - $mod" -ForegroundColor Whi
 Baslik 'Güç'
 $plan = (powercfg /getactivescheme) -join ' '
 $planAd = if ($plan -match '\((.+)\)') { $Matches[1] } else { $plan }
-if ($plan -match 'erforman|Ultimate|High|Nihai') { Yaz 'TAMAM' "Güç planı: $planAd" }
+if ($planAd -eq 'CS Sessiz') {
+    Yaz 'UYARI' 'Sessiz mod açık: işlemci yarıya sınırlı, oyunda FPS düşer'
+    Elle 'Oynayacaksan paneldeki "Sessiz modu kapat" düğmesine bas.'
+}
+elseif ($plan -match 'erforman|Ultimate|High|Nihai') { Yaz 'TAMAM' "Güç planı: $planAd" }
 else {
     Yaz 'UYARI' "Güç planı: $planAd"
     Duzeltme 'GucPlani' 'Güç planını Yüksek Performans yap' $null
