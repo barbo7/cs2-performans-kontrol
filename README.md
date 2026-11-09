@@ -56,6 +56,10 @@ Kasma genelde oyun sırasında ısınma ya da ağ yüzünden olur, o yüzden öl
 3. **Seçilenleri uygula**'ya bas ve onay penceresinde **Evet** de.
 4. **Senin elle yapman gerekenler** kutusundakileri kendin yap. Bunlar araç tarafından değiştirilemeyen şeylerdir: fan modu, modem ayarı, VPN gibi.
 
+### Steam'i yeniden başlatmak
+
+Steam sesli sohbet "Bağlanıyor"da kalırsa paneldeki **Steam'i yeniden başlat** düğmesi, onay aldıktan sonra Steam'i tamamen kapatıp açar. CS2 açıksa oyun da kapanır.
+
 ### Geri almak
 
 Paneldeki **Geri al** düğmesi ya da `CS-GeriAl.bat`, araçla değiştirilen tüm ayarları eski haline getirir. Kapatılan programlar bilgisayarı yeniden başlatınca ya da programı tekrar açınca kendiliğinden geri gelir.

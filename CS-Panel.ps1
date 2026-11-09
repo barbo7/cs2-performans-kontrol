@@ -132,6 +132,7 @@ function YeniDugme([string]$metin) {
 $btnKontrol = YeniDugme 'Yeniden kontrol et'
 $btnUygula = YeniDugme 'Seçilenleri uygula'; $btnUygula.Font = $yaziKalin
 $btnGeriAl = YeniDugme 'Geri al'
+$btnSteam = YeniDugme 'Steam''i yeniden başlat'
 $chkCanli = New-Object Windows.Forms.CheckBox
 $chkCanli.Text = 'Canlı izleme (3 sn)'; $chkCanli.Checked = $true; $chkCanli.AutoSize = $true; $chkCanli.Margin = Kenar 10
 $dugmeler.Controls.Add($chkCanli)
@@ -208,6 +209,42 @@ $btnGeriAl.Add_Click({
     Kontrol
     Mesaj $sonuc
 })
+
+# ---------------- Steam'i yeniden başlatma ----------------
+function Sor([string]$metin) { [Windows.Forms.MessageBox]::Show($form, $metin, $baslik, 'YesNo', 'Warning') -eq 'Yes' }
+function SteamBekle([bool]$acikOlsun, [int]$saniye) {
+    $adlar = if ($acikOlsun) { @('steam') } else { @('steam', 'steamwebhelper') }
+    $bitis = (Get-Date).AddSeconds($saniye)
+    while ((Get-Date) -lt $bitis) {
+        if ((@(Get-Process $adlar).Count -gt 0) -eq $acikOlsun) { return $true }
+        [Windows.Forms.Application]::DoEvents()
+        Start-Sleep -Milliseconds 250
+    }
+    $false
+}
+function SteamYeniBaslat {
+    $steamExe = (Get-ItemProperty 'HKCU:\Software\Valve\Steam').SteamExe
+    if (-not $steamExe -or -not (Test-Path -LiteralPath $steamExe)) { Mesaj 'Steam bulunamadı.' 'Warning'; return }
+    $oyunUyarisi = if (@(Get-Process cs2).Count) { "CS2 açık: oyun kapanır, maçtan ve lobiden düşersin.`r`n`r`n" } else { '' }
+    if (-not (Sor "${oyunUyarisi}Steam tamamen kapatılıp yeniden açılacak. Devam edilsin mi?")) { return }
+
+    $btnSteam.Enabled = $false
+    try {
+        Durum 'Steam kapatılıyor…'
+        Start-Process $steamExe -ArgumentList '-shutdown'
+        if (-not (SteamBekle $false 45)) {
+            if (-not (Sor 'Steam 45 saniyede kapanmadı. Zorla kapatılsın mı? CS2 açıksa o da kapanır.')) { Durum 'Steam yeniden başlatılmadı'; return }
+            Stop-Process -Name cs2, steam, steamwebhelper -Force
+            if (-not (SteamBekle $false 10)) { Durum 'Steam kapatılamadı'; Mesaj 'Steam kapatılamadı. Görev Yöneticisi''nden kapatmayı dene.' 'Warning'; return }
+        }
+        Durum 'Steam açılıyor…'
+        # Panel yönetici olarak çalışır; explorer üzerinden açılınca Steam normal kullanıcı yetkisiyle başlar.
+        Start-Process explorer.exe -ArgumentList "`"$($steamExe -replace '/', '\')`""
+        if (SteamBekle $true 20) { Durum 'Steam yeniden başlatıldı' }
+        else { Durum 'Steam açılamadı'; Mesaj 'Steam kapandı ama açılamadı. Masaüstünden elle aç.' 'Warning' }
+    } finally { $btnSteam.Enabled = $true }
+}
+$btnSteam.Add_Click({ SteamYeniBaslat })
 
 # ---------------- Canlı izleme ----------------
 $script:pinger = New-Object System.Net.NetworkInformation.Ping

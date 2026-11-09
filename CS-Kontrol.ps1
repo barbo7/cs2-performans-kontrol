@@ -416,7 +416,7 @@ else {
         if ($sesHatalari.Count -ge 3) { Yaz 'SORUN' $metin } else { Yaz 'UYARI' $metin }
         $tetikleyen = @($kopmalar | Where-Object { $_.TimeCreated -le $sesHatalari[0] -and $_.TimeCreated -ge $sesHatalari[0].AddMinutes(-10) })
         if ($tetikleyen.Count) { Yaz 'BİLGİ' "Ses hataları, saat $($tetikleyen[0].TimeCreated.ToString('HH:mm'))'deki Wi-Fi kopmasından sonra başlamış" }
-        Elle 'Steam sesi "Bağlanıyor"da kalıyorsa: Steam > Çıkış ile tamamen kapatıp aç (CS2 lobisinden düşersin). Düzelmezse telefon hotspot''unda dene; orada çalışıyorsa sorun modemde veya internet hattındadır.'
+        Elle 'Steam sesi "Bağlanıyor"da kalıyorsa: paneldeki "Steam''i yeniden başlat" düğmesiyle veya Steam > Çıkış ile tamamen kapatıp aç (CS2 lobisinden düşersin). Düzelmezse telefon hotspot''unda dene; orada çalışıyorsa sorun modemde veya internet hattındadır.'
     }
 }
 
