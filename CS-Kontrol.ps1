@@ -375,6 +375,51 @@ if ($enIyi5) {
     if ($yaniltici.Count) { Elle 'Kalıcı çözüm: modemin arayüzünden ağ adlarını düzelt (gerçek 5 GHz olana _5G ekle, diğerinden kaldır).' }
 }
 
+# ---------------- Geçmiş kopmalar ve Steam sesi (anlık ping bunları göremez) ----------------
+Baslik 'Bağlantı geçmişi ve Steam sesi'
+$simdi = Get-Date
+$kopmalar = @()
+$wifiGunluguOkundu = $true
+try {
+    $kopmalar = @(Get-WinEvent -FilterHashtable @{ LogName = 'Microsoft-Windows-WLAN-AutoConfig/Operational'; StartTime = $simdi.AddHours(-24); Id = 8003 } -ErrorAction Stop | Where-Object {
+        # ReasonCode 2/3: kullanıcı kesti veya başka ağa geçti, kopma sayılmaz. Mesaj metni dile göre değişir, kod değişmez.
+        $kod = foreach ($alan in ([xml]$_.ToXml()).Event.EventData.Data) { if ($alan.Name -eq 'ReasonCode') { $alan.'#text' } }
+        $kod -notin '2', '3'
+    })
+} catch { if ($_.FullyQualifiedErrorId -notlike 'NoMatchingEventsFound*') { $wifiGunluguOkundu = $false } }
+
+$kopma3Saat = @($kopmalar | Where-Object { $_.TimeCreated -ge $simdi.AddHours(-3) })
+if (-not $wifiGunluguOkundu) { Yaz 'NOT' 'Wi-Fi olay günlüğü okunamadı.' }
+elseif ($kopma3Saat.Count -or $kopmalar.Count -ge 3) {
+    Yaz 'UYARI' "Wi-Fi son 24 saatte $($kopmalar.Count) kez koptu (son 3 saatte $($kopma3Saat.Count), en son $($kopmalar[0].TimeCreated.ToString('dd.MM HH:mm'))). Anlık ping bunu göstermez."
+    Elle 'Wi-Fi sık kopuyorsa: Intel Wi-Fi sürücüsünü güncelle ve Aygıt Yöneticisi > Wi-Fi bağdaştırıcısı > Güç Yönetimi''nde güç tasarrufu için kapatmayı kaldır.'
+}
+elseif ($kopmalar.Count) { Yaz 'BİLGİ' "Wi-Fi son 24 saatte $($kopmalar.Count) kez koptu, en son $($kopmalar[0].TimeCreated.ToString('dd.MM HH:mm')) (uyku ve modem yeniden başlaması da buna dahil)" }
+else { Yaz 'TAMAM' 'Wi-Fi son 24 saatte kendiliğinden kopmamış' }
+
+$steamYolu = (Get-ItemProperty 'HKCU:\Software\Valve\Steam').SteamPath
+$cefGunluk = if ($steamYolu) { Join-Path $steamYolu 'logs\cef_log.txt' }
+if (-not $cefGunluk -or -not (Test-Path -LiteralPath $cefGunluk)) { Yaz 'NOT' 'Steam ses günlüğü bulunamadı.' }
+else {
+    # Steam sesli sohbeti WebRTC'dir; kanala bağlanamayınca günlüğe bu ICE satırı düşer. Satırda yıl yok: [pid:tid:AAGG/SSDDSS.mmm:...]
+    $sesHatalari = @()
+    foreach ($m in (Select-String -LiteralPath $cefGunluk -SimpleMatch 'Remapping ICE state failed')) {
+        if ($m.Line -notmatch ':(\d{4})/(\d{6})\.') { continue }
+        $t = [datetime]::MinValue
+        if (-not [datetime]::TryParseExact("$($simdi.Year)$($Matches[1])$($Matches[2])", 'yyyyMMddHHmmss', [Globalization.CultureInfo]::InvariantCulture, 'None', [ref]$t)) { continue }
+        if ($t -gt $simdi.AddDays(1)) { $t = $t.AddYears(-1) }
+        if ($t -ge $simdi.AddHours(-3)) { $sesHatalari += $t }
+    }
+    if (-not $sesHatalari.Count) { Yaz 'TAMAM' 'Steam sesli sohbette son 3 saatte bağlantı hatası görünmüyor' }
+    else {
+        $metin = "Steam sesli sohbet son 3 saatte $($sesHatalari.Count) kez bağlanamadı (en son $($sesHatalari[-1].ToString('HH:mm'))). Ses, ping'den ayrı bir yoldan (WebRTC/UDP) gider."
+        if ($sesHatalari.Count -ge 3) { Yaz 'SORUN' $metin } else { Yaz 'UYARI' $metin }
+        $tetikleyen = @($kopmalar | Where-Object { $_.TimeCreated -le $sesHatalari[0] -and $_.TimeCreated -ge $sesHatalari[0].AddMinutes(-10) })
+        if ($tetikleyen.Count) { Yaz 'BİLGİ' "Ses hataları, saat $($tetikleyen[0].TimeCreated.ToString('HH:mm'))'deki Wi-Fi kopmasından sonra başlamış" }
+        Elle 'Steam sesi "Bağlanıyor"da kalıyorsa: Steam > Çıkış ile tamamen kapatıp aç (CS2 lobisinden düşersin). Düzelmezse telefon hotspot''unda dene; orada çalışıyorsa sorun modemde veya internet hattındadır.'
+    }
+}
+
 # ---------------- Canlı ölçüm (yalnızca kontrol modunda) ----------------
 if (-not $Duzelt -and -not $Deneme -and -not $Sessiz -and -not $Secilen -and $Saniye -gt 0) {
     Baslik "Canlı ölçüm ($Saniye sn): ekran kartı, işlemci, ping"

@@ -83,6 +83,7 @@ Paneldeki **Geri al** düğmesi ya da `CS-GeriAl.bat`, araçla değiştirilen t�
 - **Açılışta başlayan programlar:** torrent, Plex, Epic, Opera
 - **İnternet:** kablo bağlı mı, VPN açık mı, Wi-Fi bandı, sinyal, kanal
 - **Wi-Fi ağlarının gerçek bandı:** Adında "5G" yazıp aslında 2.4 GHz yayın yapan ağları (ve tersini) bulur. Modemlerde ağ adları sık sık yanlış verilir.
+- **Bağlantı geçmişi ve Steam sesi:** Son 24 saatteki Wi-Fi kopmalarını ve son 3 saatte Steam sesli sohbetin bağlanamadığı denemeleri bilgisayardaki günlüklerden okur. Anlık ping iyi görünse bile bu sorunları yakalar.
 - **Canlı ölçüm:** ekran kartı sıcaklığı ve ısınmadan dolayı yavaşlama, işlemci hızı, modeme ve internete ping
 
 ## Neleri otomatik düzeltebilir
