@@ -330,6 +330,12 @@ $zaman.Interval = 3000
 $zaman.Add_Tick({ if ($chkCanli.Checked) { CanliGuncelle } })
 
 $form.Add_Shown({
+    # Fan devri script'ten ayarlanamıyor (OMEN Hub'ın komut satırı yok); Hub'ı açıp Performance + fan ayarını kullanıcıya bırakırız.
+    # explorer üzerinden açılır: panel yönetici olarak çalışsa da Store uygulaması normal kullanıcı olarak başlar.
+    if (-not $TestGoruntu) {
+        $omen = Get-StartApps | Where-Object { $_.Name -eq 'OMEN Gaming Hub' } | Select-Object -First 1
+        if ($omen) { Start-Process explorer.exe "shell:AppsFolder\$($omen.AppID)" }
+    }
     $form.Activate()
     $form.Refresh()
     CanliGuncelle

@@ -56,6 +56,10 @@ Kasma genelde oyun sırasında ısınma ya da ağ yüzünden olur, o yüzden öl
 3. **Seçilenleri uygula**'ya bas ve onay penceresinde **Evet** de.
 4. **Senin elle yapman gerekenler** kutusundakileri kendin yap. Bunlar araç tarafından değiştirilemeyen şeylerdir: fan modu, modem ayarı, VPN gibi.
 
+### Fanlar
+
+Panel açılınca **OMEN Gaming Hub** da açılır (kuruluysa). Oynamadan önce orada **Performance** modunu ve fan ayarını seç. Araç fan devrini kendisi değiştirmez; HP bunun için komut satırı sunmuyor.
+
 ### Steam'i yeniden başlatmak
 
 Steam sesli sohbet "Bağlanıyor"da kalırsa paneldeki **Steam'i yeniden başlat** düğmesi, onay aldıktan sonra Steam'i tamamen kapatıp açar. CS2 açıksa oyun da kapanır.
