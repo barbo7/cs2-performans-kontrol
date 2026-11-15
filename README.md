@@ -92,6 +92,7 @@ Paneldeki **Geri al** düğmesi ya da `CS-GeriAl.bat`, araçla değiştirilen t�
 - **Arka plan programları:** SteelSeries GG, Logitech G HUB, OMEN Light Studio, Plex, Epic, torrent
 - **Açılışta başlayan programlar:** torrent, Plex, Epic, Opera
 - **İnternet:** kablo bağlı mı, VPN açık mı, Wi-Fi bandı, sinyal, kanal
+- **Ara ara ping zıplaması:** arka planda trafik (Steam/OneDrive/Windows Update indirmesi), yarım kalmış Windows Update indirmesi ve indirme hız sınırı, konum hizmetinin tetiklediği Wi-Fi taramaları, Wi-Fi kartında Packet Coalescing, eski Wi-Fi sürücüsü
 - **Wi-Fi ağlarının gerçek bandı:** Adında "5G" yazıp aslında 2.4 GHz yayın yapan ağları (ve tersini) bulur. Modemlerde ağ adları sık sık yanlış verilir.
 - **Bağlantı geçmişi ve Steam sesi:** Son 24 saatteki Wi-Fi kopmalarını ve son 3 saatte Steam sesli sohbetin bağlanamadığı denemeleri bilgisayardaki günlüklerden okur. Anlık ping iyi görünse bile bu sorunları yakalar.
 - **Canlı ölçüm:** ekran kartı sıcaklığı ve ısınmadan dolayı yavaşlama, işlemci hızı, modeme ve internete ping

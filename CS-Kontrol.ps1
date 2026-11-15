@@ -130,6 +130,11 @@ function Uygula($d) {
         'WifiBaglan' {
             NetshCalistir "wlan connect name=`"$v`"" | Out-Null
         }
+        'AgOzellik' {
+            $eski = (Get-NetAdapterAdvancedProperty -Name $v.Adaptor -RegistryKeyword $v.Anahtar -ErrorAction Stop).RegistryValue
+            Set-NetAdapterAdvancedProperty -Name $v.Adaptor -RegistryKeyword $v.Anahtar -RegistryValue $v.Deger -ErrorAction Stop
+            [pscustomobject]@{ Tur = 'AgOzellik'; Adaptor = $v.Adaptor; Anahtar = $v.Anahtar; Eski = @($eski) }
+        }
     }
 }
 function GeriYukle($k) {
@@ -140,6 +145,7 @@ function GeriYukle($k) {
         }
         'GucPlani' { if ($k.Eski) { powercfg /setactive $k.Eski | Out-Null } }
         'WifiManuel' { NetshCalistir "wlan set profileparameter name=`"$($k.Profil)`" connectionmode=auto" | Out-Null }
+        'AgOzellik' { Set-NetAdapterAdvancedProperty -Name $k.Adaptor -RegistryKeyword $k.Anahtar -RegistryValue @($k.Eski) -ErrorAction Stop }
     }
 }
 function YedekOku {
@@ -290,12 +296,69 @@ $kablo = Get-NetAdapter -Physical | Where-Object { $_.Status -eq 'Up' -and $_.Ph
 if ($kablo) { Yaz 'TAMAM' "Kablo ile bağlı: $($kablo[0].InterfaceDescription)" }
 else { Yaz 'BİLGİ' 'Kablo bağlı değil. CS için en stabil bağlantı kablodur.'; Elle 'Mümkünse modeme kablo ile bağlan (laptopta Ethernet girişi var).' }
 
-$vpn = @(Get-NetAdapter | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceDescription -match 'PANGP|GlobalProtect|TAP-|WireGuard|WireSock|Wintun|VPN' })
+$vpn = @(Get-NetAdapter | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceDescription -match 'PANGP|GlobalProtect|TAP-|WireGuard|WireSock|Wintun|ZeroTier|Tailscale|VPN' })
 if ($vpn.Count) {
+    $vpnAdlari = ($vpn.InterfaceDescription | Select-Object -Unique) -join ', '
     $rota = Find-NetRoute -RemoteIPAddress 1.1.1.1 | Where-Object InterfaceAlias | Select-Object -First 1
-    if ($vpn.Name -contains $rota.InterfaceAlias) { Yaz 'SORUN' "İnternet trafiği VPN'den geçiyor ($($vpn[0].InterfaceDescription))" }
-    else { Yaz 'UYARI' "VPN bağlı ($($vpn[0].InterfaceDescription)), oyun trafiği ondan geçmiyor görünüyor" }
-    Elle "Oynarken VPN'i (GlobalProtect) sistem tepsisinden Disconnect et. İş VPN'i olabileceği için script kapatmaz."
+    if ($vpn.Name -contains $rota.InterfaceAlias) { Yaz 'SORUN' "İnternet trafiği VPN'den geçiyor ($vpnAdlari)" }
+    else { Yaz 'UYARI' "VPN bağlı ($vpnAdlari), oyun trafiği ondan geçmiyor görünüyor" }
+    Elle "Oynarken VPN'i ($vpnAdlari) kendi uygulamasından kapat. İş VPN'i olabileceği için script kapatmaz."
+}
+
+# Arka plan indirmeleri: hattı doldurunca ping ara ara zıplar
+$wifiKart = Get-NetAdapter -Physical | Where-Object { $_.Status -eq 'Up' -and ($_.PhysicalMediaType -match '802\.11|Wireless' -or $_.InterfaceDescription -match 'Wi-?Fi|Wireless') } | Select-Object -First 1
+$anaKart = if ($kablo) { $kablo[0] } else { $wifiKart }
+if ($anaKart) {
+    $s1 = Get-NetAdapterStatistics -Name $anaKart.Name
+    Start-Sleep -Seconds 3
+    $s2 = Get-NetAdapterStatistics -Name $anaKart.Name
+    $inis = [math]::Round(($s2.ReceivedBytes - $s1.ReceivedBytes) * 8 / 3 / 1MB, 1)
+    $cikis = [math]::Round(($s2.SentBytes - $s1.SentBytes) * 8 / 3 / 1MB, 1)
+    # CS2 oyun trafiği 1 Mbps'in altındadır; fazlası başka bir şeyin indirdiğini/yüklediğini gösterir
+    if ($inis -gt 3 -or $cikis -gt 1) {
+        Yaz 'UYARI' "Arka planda trafik var: iniş $inis Mbps, çıkış $cikis Mbps (CS2 1 Mbps'den az kullanır). Steam, Windows Update, OneDrive veya tarayıcı indiriyor olabilir."
+        Elle 'Oynarken Steam indirmelerini duraklat (Steam > Ayarlar > İndirmeler > "Oyun oynarken indirmelere izin ver" kapalı olsun), OneDrive''ı duraklat.'
+    } else { Yaz 'TAMAM' "Arka plan trafiği düşük: iniş $inis Mbps, çıkış $cikis Mbps" }
+}
+
+$doAnlik = Get-DeliveryOptimizationPerfSnap
+if (($doAnlik.BackgroundDownloadCount + $doAnlik.ForegroundDownloadCount) -gt 0) { Yaz 'UYARI' 'Windows Update şu an arka planda indiriyor' }
+$yarimGuncelleme = @(Get-DeliveryOptimizationStatus | Where-Object { $_.FileSize -gt 0 -and ($_.BytesFromHttp + $_.BytesFromPeers + $_.BytesFromCacheServer) -lt $_.FileSize })
+if ($yarimGuncelleme.Count) {
+    $kalanMb = [math]::Round((($yarimGuncelleme | ForEach-Object { $_.FileSize - $_.BytesFromHttp - $_.BytesFromPeers - $_.BytesFromCacheServer }) | Measure-Object -Sum).Sum / 1MB)
+    Yaz 'UYARI' "Yarım kalmış Windows Update indirmesi var (~$kalanMb MB kaldı): bilgisayar boşta sanınca parça parça indirir, oyun sırasında ping zıplatabilir"
+    Elle 'Oynamadan önce Ayarlar > Windows Update''ten güncellemeleri bitir ya da oynarken "Güncellemeleri duraklat"a bas.'
+}
+$doPolitika = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization'
+$doSinir = (KayitOku $doPolitika 'DOPercentageMaxBackgroundBandwidth').Deger
+if ($doSinir -and $doSinir -le 20) { Yaz 'TAMAM' "Windows Update arka plan indirme hızı %$doSinir ile sınırlı" }
+else {
+    Yaz 'BİLGİ' 'Windows Update arka planda hattın büyük kısmını kullanabilir (sınır yok). Sınır konursa Ayarlar''da "kuruluşunuz yönetiyor" yazısı çıkar, normaldir.'
+    Duzeltme 'Kayit' 'Windows Update arka plan indirmesini hattın %10''u ile sınırla' @(
+        @{ Yol = $doPolitika; Ad = 'DOPercentageMaxBackgroundBandwidth'; Tip = 'DWord'; Deger = 10 })
+}
+
+# Konum servisi açıkken Windows konum bulmak için ara ara Wi-Fi taraması yapar; tarama sırasında ping 1-2 sn zıplar
+$konumYolu = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location'
+if ($wifiKart -and (Get-Service lfsvc).Status -eq 'Running' -and (KayitOku $konumYolu 'Value').Deger -ne 'Deny') {
+    Yaz 'UYARI' 'Konum hizmeti açık: Windows konum için ara ara Wi-Fi taraması yapar, tarama anında ping 1-2 saniye zıplar'
+    Duzeltme 'Kayit' 'Konum hizmetini kapat (Ayarlar > Gizlilik > Konum ile aynı; Bul/Hava durumu konumu göremez)' @(
+        @{ Yol = $konumYolu; Ad = 'Value'; Tip = 'String'; Deger = 'Deny' })
+} elseif ($wifiKart) { Yaz 'TAMAM' 'Konum hizmeti kapalı (ara ara Wi-Fi taraması yok)' }
+
+if ($wifiKart) {
+    # Packet Coalescing paketleri biriktirip toplu iletir; pil kazandırır ama ping'e birkaç ms dalgalanma ekler
+    $birlestir = Get-NetAdapterAdvancedProperty -Name $wifiKart.Name -RegistryKeyword '*PacketCoalescing'
+    if ($birlestir -and "$($birlestir.RegistryValue)" -eq '1') {
+        Yaz 'UYARI' 'Wi-Fi kartında Packet Coalescing açık: paketler biriktirilip gönderilir, ping birkaç ms dalgalanır'
+        Duzeltme 'AgOzellik' 'Wi-Fi kartında Packet Coalescing''i kapat (Wi-Fi 2-3 saniye kesilir)' ([pscustomobject]@{ Adaptor = $wifiKart.Name; Anahtar = '*PacketCoalescing'; Deger = '0' })
+    } elseif ($birlestir) { Yaz 'TAMAM' 'Wi-Fi kartında Packet Coalescing kapalı' }
+
+    $surucuTarihi = [datetime]::MinValue
+    if ([datetime]::TryParse("$($wifiKart.DriverDate)", [Globalization.CultureInfo]::InvariantCulture, 'None', [ref]$surucuTarihi) -and ((Get-Date) - $surucuTarihi).TotalDays -gt 365) {
+        Yaz 'BİLGİ' ("Wi-Fi sürücüsü eski: {0} ({1:dd.MM.yyyy}, {2} ay önce)" -f $wifiKart.DriverVersionString, $surucuTarihi, [int](((Get-Date) - $surucuTarihi).TotalDays / 30))
+        Elle 'Wi-Fi sürücüsünü güncelle: Intel kartlarda "Intel Driver & Support Assistant" ile, ya da HP Support Assistant ile.'
+    }
 }
 
 $arayuz = netsh wlan show interfaces
