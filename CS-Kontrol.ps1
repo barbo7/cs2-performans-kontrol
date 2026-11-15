@@ -424,6 +424,24 @@ else {
     }
 }
 
+# ---------------- Ses aygıtı (kulaklık takınca donma) ----------------
+Baslik 'Ses aygıtı'
+$sesUclari = @(Get-PnpDevice -Class AudioEndpoint -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'OK' })
+# Realtek iki akış modunda hoparlör ve jack ayrı aygıttır; jack takılınca varsayılan aygıt oyun açıkken değişir ve CS2 sesi yeniden kurarken donabilir.
+$rtHoparlor = $sesUclari | Where-Object { $_.FriendlyName -match '^Speakers? \(Realtek' }
+$rtKulaklik = $sesUclari | Where-Object { $_.FriendlyName -match '^Headphones? \(Realtek' }
+if ($rtHoparlor -and $rtKulaklik) {
+    Yaz 'UYARI' 'Realtek hoparlör ve kulaklık jack''i ayrı aygıt olarak görünüyor. CS2 açıkken kulaklık takılınca Windows çıkışı değiştirir, oyun donabilir.'
+    Elle 'Kulaklık takınca CS2 donuyorsa: Realtek Audio Console''u (yoksa Microsoft Store''dan "Realtek Audio Control" kur; "RtkAudioUniversalService" servisi çalışmalı) aç > Cihaz gelişmiş ayarları > "Harici kulaklık takıldığında dahili çıkışı sessize al" seçeneğini seç (iki ayrı akış seçeneğini değil). Olmuyorsa kulaklığı CS2''yi açmadan önce tak.'
+}
+elseif ($rtHoparlor) { Yaz 'TAMAM' 'Realtek hoparlör ve kulaklık tek aygıt; jack takılınca çıkış değişmez' }
+else { Yaz 'NOT' 'Realtek ses aygıtı bulunamadı.' }
+
+if ($sesUclari | Where-Object { $_.FriendlyName -match 'SteelSeries Sonar' }) {
+    Yaz 'BİLGİ' 'SteelSeries Sonar sesi kendi sanal aygıtından geçiriyor; aygıt değişiminde CS2 donmasına katkı verebilir.'
+    Elle 'Sonar kullanmıyorsan SteelSeries GG''den kapat; kullanıyorsan Ayarlar > Ses > Ses karıştırıcı''da cs2.exe çıkışını Sonar "Game" aygıtına sabitle.'
+}
+
 # ---------------- Canlı ölçüm (yalnızca kontrol modunda) ----------------
 if (-not $Duzelt -and -not $Deneme -and -not $Sessiz -and -not $Secilen -and $Saniye -gt 0) {
     Baslik "Canlı ölçüm ($Saniye sn): ekran kartı, işlemci, ping"
