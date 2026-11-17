@@ -132,7 +132,7 @@ function YeniDugme([string]$metin) {
 $btnKontrol = YeniDugme 'Yeniden kontrol et'
 $btnUygula = YeniDugme 'Seçilenleri uygula'; $btnUygula.Font = $yaziKalin
 $btnGeriAl = YeniDugme 'Geri al'
-$btnSteam = YeniDugme 'Steam''i yeniden başlat'
+$btnSteam = YeniDugme 'Steam sesini onar'
 $btnSessiz = YeniDugme 'Sessiz modu aç'
 $chkCanli = New-Object Windows.Forms.CheckBox
 $chkCanli.Text = 'Canlı izleme (3 sn)'; $chkCanli.Checked = $true; $chkCanli.AutoSize = $true; $chkCanli.Margin = Kenar 10
@@ -231,7 +231,7 @@ function SteamYeniBaslat {
     $steamExe = (Get-ItemProperty 'HKCU:\Software\Valve\Steam').SteamExe
     if (-not $steamExe -or -not (Test-Path -LiteralPath $steamExe)) { Mesaj 'Steam bulunamadı.' 'Warning'; return }
     $oyunUyarisi = if (@(Get-Process cs2).Count) { "CS2 açık: oyun kapanır, maçtan ve lobiden düşersin.`r`n`r`n" } else { '' }
-    if (-not (Sor "${oyunUyarisi}Steam tamamen kapatılıp yeniden açılacak. Devam edilsin mi?")) { return }
+    if (-not (Sor "${oyunUyarisi}Steam tamamen kapatılacak, tarayıcı önbelleği (sohbet/ses penceresi) temizlenip yeniden açılacak. Steam hesabından çıkış yapılmaz.`r`n`r`nDevam edilsin mi?")) { return }
 
     $btnSteam.Enabled = $false
     try {
@@ -241,6 +241,12 @@ function SteamYeniBaslat {
             if (-not (Sor 'Steam 45 saniyede kapanmadı. Zorla kapatılsın mı? CS2 açıksa o da kapanır.')) { Durum 'Steam yeniden başlatılmadı'; return }
             Stop-Process -Name cs2, steam, steamwebhelper -Force
             if (-not (SteamBekle $false 10)) { Durum 'Steam kapatılamadı'; Mesaj 'Steam kapatılamadı. Görev Yöneticisi''nden kapatmayı dene.' 'Warning'; return }
+        }
+        # Bozuk CEF önbelleği sesli sohbetin "Bağlanıyor"da kalmasına yol açabiliyor; Steam açılınca yeniden oluşturur.
+        $onbellek = Join-Path $env:LOCALAPPDATA 'Steam\htmlcache'
+        if (Test-Path -LiteralPath $onbellek) {
+            Durum 'Steam önbelleği temizleniyor…'
+            Remove-Item -LiteralPath $onbellek -Recurse -Force -ErrorAction SilentlyContinue
         }
         Durum 'Steam açılıyor…'
         # Panel yönetici olarak çalışır; explorer üzerinden açılınca Steam normal kullanıcı yetkisiyle başlar.

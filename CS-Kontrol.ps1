@@ -130,6 +130,18 @@ function Uygula($d) {
         'WifiBaglan' {
             NetshCalistir "wlan connect name=`"$v`"" | Out-Null
         }
+        'GuvenlikDuvariEngel' {
+            Disable-NetFirewallRule -Name @($v) -ErrorAction Stop
+            [pscustomobject]@{ Tur = 'GuvenlikDuvariEngel'; Kurallar = @($v) }
+        }
+        'GuvenlikDuvariIzin' {
+            $adlar = foreach ($p in @($v)) {
+                $ad = 'CsPerformans-' + [guid]::NewGuid().ToString('N')
+                New-NetFirewallRule -Name $ad -DisplayName "CsPerformans: $(Split-Path $p -Leaf)" -Direction Inbound -Action Allow -Program $p -Profile Any -ErrorAction Stop | Out-Null
+                $ad
+            }
+            [pscustomobject]@{ Tur = 'GuvenlikDuvariIzin'; Kurallar = @($adlar) }
+        }
         'AgOzellik' {
             $eski = (Get-NetAdapterAdvancedProperty -Name $v.Adaptor -RegistryKeyword $v.Anahtar -ErrorAction Stop).RegistryValue
             Set-NetAdapterAdvancedProperty -Name $v.Adaptor -RegistryKeyword $v.Anahtar -RegistryValue $v.Deger -ErrorAction Stop
@@ -145,6 +157,8 @@ function GeriYukle($k) {
         }
         'GucPlani' { if ($k.Eski) { powercfg /setactive $k.Eski | Out-Null } }
         'WifiManuel' { NetshCalistir "wlan set profileparameter name=`"$($k.Profil)`" connectionmode=auto" | Out-Null }
+        'GuvenlikDuvariEngel' { Enable-NetFirewallRule -Name @($k.Kurallar) -ErrorAction Stop }
+        'GuvenlikDuvariIzin' { Remove-NetFirewallRule -Name @($k.Kurallar) -ErrorAction Stop }
         'AgOzellik' { Set-NetAdapterAdvancedProperty -Name $k.Adaptor -RegistryKeyword $k.Anahtar -RegistryValue @($k.Eski) -ErrorAction Stop }
     }
 }
@@ -483,8 +497,123 @@ else {
         if ($sesHatalari.Count -ge 3) { Yaz 'SORUN' $metin } else { Yaz 'UYARI' $metin }
         $tetikleyen = @($kopmalar | Where-Object { $_.TimeCreated -le $sesHatalari[0] -and $_.TimeCreated -ge $sesHatalari[0].AddMinutes(-10) })
         if ($tetikleyen.Count) { Yaz 'BİLGİ' "Ses hataları, saat $($tetikleyen[0].TimeCreated.ToString('HH:mm'))'deki Wi-Fi kopmasından sonra başlamış" }
-        Elle 'Steam sesi "Bağlanıyor"da kalıyorsa: paneldeki "Steam''i yeniden başlat" düğmesiyle veya Steam > Çıkış ile tamamen kapatıp aç (CS2 lobisinden düşersin). Düzelmezse telefon hotspot''unda dene; orada çalışıyorsa sorun modemde veya internet hattındadır.'
+        Elle 'Steam sesi "Bağlanıyor"da kalıyorsa: paneldeki "Steam sesini onar" düğmesiyle veya Steam > Çıkış ile tamamen kapatıp aç (CS2 lobisinden düşersin). Düzelmezse telefon hotspot''unda dene; orada çalışıyorsa sorun modemde veya internet hattındadır.'
     }
+}
+
+# ---------------- Steam sesli sohbet: ağ ve izinler ----------------
+# Steam sesi WebRTC ile kişiden kişiye bağlanır. Gruptan biri bile uyumsuz ağdaysa o kişi kanala giremez;
+# bu bölüm sorunun bu bilgisayarda mı olduğunu gösterir. Herkes paneli kendi bilgisayarında çalıştırmalı.
+Baslik 'Steam sesli sohbet: ağ ve izinler'
+
+# STUN: aynı yerel porttan iki sunucuya "dışarıdan nasıl görünüyorum" diye sorulur.
+# Dış port sunucuya göre değişiyorsa NAT simetriktir; bu ağdan doğrudan sesli bağlantı kurulamaz.
+function StunSor($udp, [string]$sunucu, [int]$port) {
+    [byte[]]$cerez = 0x21, 0x12, 0xA4, 0x42
+    $istek = New-Object byte[] 20
+    $istek[1] = 1
+    [Array]::Copy($cerez, 0, $istek, 4, 4)
+    $kimlik = New-Object byte[] 12
+    (New-Object Random).NextBytes($kimlik)
+    [Array]::Copy($kimlik, 0, $istek, 8, 12)
+    for ($deneme = 0; $deneme -lt 2; $deneme++) {
+        try {
+            [void]$udp.Send($istek, 20, $sunucu, $port)
+            $uc = New-Object Net.IPEndPoint ([Net.IPAddress]::Any), 0
+            $c = $udp.Receive([ref]$uc)
+        } catch { continue }
+        if ($c.Length -lt 20 -or $c[0] -ne 1 -or $c[1] -ne 1) { continue }
+        $ayni = $true
+        for ($k = 0; $k -lt 12; $k++) { if ($c[8 + $k] -ne $kimlik[$k]) { $ayni = $false; break } }
+        if (-not $ayni) { continue }
+        $i = 20
+        while ($i + 4 -le $c.Length) {
+            $tip = $c[$i] * 256 + $c[$i + 1]; $uz = $c[$i + 2] * 256 + $c[$i + 3]; $d = $i + 4
+            if (($tip -eq 0x20 -or $tip -eq 1) -and $uz -ge 8 -and $c[$d + 1] -eq 1) {
+                $p = $c[$d + 2] * 256 + $c[$d + 3]
+                $ip = @($c[($d + 4)..($d + 7)])
+                if ($tip -eq 0x20) {
+                    $p = $p -bxor 0x2112
+                    $ip = for ($k = 0; $k -lt 4; $k++) { $ip[$k] -bxor $cerez[$k] }
+                }
+                return [pscustomobject]@{ Ip = ($ip -join '.'); Port = $p }
+            }
+            $i = $d + [math]::Ceiling($uz / 4) * 4
+        }
+    }
+}
+$stun1 = $null; $stun2 = $null
+$udp = New-Object Net.Sockets.UdpClient 0
+try {
+    $udp.Client.ReceiveTimeout = 1500
+    $stun1 = StunSor $udp 'stun.l.google.com' 19302
+    $stun2 = StunSor $udp 'stun.cloudflare.com' 3478
+} finally { $udp.Close() }
+$natElle = 'Steam sesinde sorun hep bu bilgisayarda çıkıyorsa: modem arayüzünde UPnP''yi aç ve modemi yeniden başlat. Düzelmezse internet sağlayıcını arayıp "CGNAT''tan çıkarılmak / gerçek IP" iste (Türk Telekom, Superonline, Vodafone ve TurkNet''te ücretsiz ya da ücretli yapılabiliyor). Hızlı deneme: telefon hotspot''undan bağlanıp ses çalışıyor mu bak.'
+if (-not $stun1 -and -not $stun2) {
+    Yaz 'SORUN' 'Bu bilgisayardan dışarıya UDP gitmiyor (iki STUN sunucusu da cevap vermedi). Steam sesi UDP ile çalışır; bu ağda kanala bağlanamazsın.'
+    Elle 'UDP engeli: VPN''i ve üçüncü parti antivirüs güvenlik duvarını kapatıp tekrar kontrol et; okul/yurt/iş ağındaysan o ağ UDP''yi kapatıyor olabilir, telefon hotspot''unda dene.'
+}
+elseif (-not $stun1 -or -not $stun2) { Yaz 'NOT' 'NAT tipi ölçülemedi (STUN sunucularından biri cevap vermedi).' }
+elseif ($stun1.Port -ne $stun2.Port -or $stun1.Ip -ne $stun2.Ip) {
+    Yaz 'SORUN' 'Ağın NAT tipi simetrik: dış port her bağlantıda değişiyor. Steam sesinde gruptakilerle doğrudan bağlantı kurulamaz; sesin gelmemesi/gitmemesi büyük ihtimalle bu ağdan.'
+    Elle $natElle
+}
+else { Yaz 'TAMAM' 'NAT tipi sesli sohbet için uygun (dış port sabit kalıyor)' }
+
+# Windows güvenlik duvarı: izin isteği penceresinde "İptal" denince Steam için Engelle kuralları oluşur.
+$steamExeYolu = (Get-ItemProperty 'HKCU:\Software\Valve\Steam').SteamExe
+$steamProgramlari = @()
+if ($steamExeYolu) { $steamProgramlari += ($steamExeYolu -replace '/', '\') }
+if ($steamYolu) {
+    $yardimci = Join-Path ($steamYolu -replace '/', '\') 'bin\cef\cef.win64\steamwebhelper.exe'
+    if (Test-Path -LiteralPath $yardimci) { $steamProgramlari += $yardimci }
+}
+$fwFiltreleri = @(Get-NetFirewallApplicationFilter | Where-Object { $_.Program -match '\\(steam|steamwebhelper|cs2)\.exe$' })
+$fwKurallari = @(foreach ($f in $fwFiltreleri) {
+    $r = $f | Get-NetFirewallRule
+    if ($r.Enabled -eq 'True') { [pscustomobject]@{ Ad = $r.Name; Gorunen = $r.DisplayName; Yon = "$($r.Direction)"; Eylem = "$($r.Action)"; Program = [Environment]::ExpandEnvironmentVariables($f.Program) } }
+})
+$engeller = @($fwKurallari | Where-Object { $_.Eylem -eq 'Block' })
+if ($engeller.Count) {
+    $adlar = ($engeller | ForEach-Object { Split-Path $_.Program -Leaf } | Sort-Object -Unique) -join ', '
+    Yaz 'SORUN' "Windows güvenlik duvarında Steam'i engelleyen $($engeller.Count) kural var ($adlar). Ses ve oyun bağlantısı kesilir."
+    Duzeltme 'GuvenlikDuvariEngel' "Güvenlik duvarında Steam'i engelleyen kuralları kapat ($adlar)" @($engeller | ForEach-Object { $_.Ad })
+}
+$izinsiz = @($steamProgramlari | Where-Object {
+    $p = $_
+    -not ($fwKurallari | Where-Object { $_.Eylem -eq 'Allow' -and $_.Yon -eq 'Inbound' -and $_.Program -ieq $p })
+})
+if ($izinsiz.Count) {
+    $adlar = ($izinsiz | ForEach-Object { Split-Path $_ -Leaf }) -join ', '
+    Yaz 'UYARI' "Güvenlik duvarında gelen bağlantı izni yok: $adlar. Arkadaşın sana doğrudan bağlanamaz, ses kopuk olabilir."
+    Duzeltme 'GuvenlikDuvariIzin' "Güvenlik duvarında Steam'e gelen bağlantı izni ver ($adlar)" $izinsiz
+}
+if (-not $engeller.Count -and -not $izinsiz.Count -and $steamProgramlari.Count) { Yaz 'TAMAM' 'Windows güvenlik duvarı Steam''e izin veriyor' }
+
+# Mikrofon gizlilik izni: kapalıysa Steam kanala girer ama sesin karşıya gitmez.
+$mikKok = 'Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone'
+$mikKapali = @("HKLM:\$mikKok", "HKCU:\$mikKok", "HKCU:\$mikKok\NonPackaged" | Where-Object { (KayitOku $_ 'Value').Deger -eq 'Deny' })
+if ($mikKapali.Count) {
+    Yaz 'SORUN' 'Windows gizlilik ayarı masaüstü uygulamalarının mikrofonu kullanmasını engelliyor: Steam''de konuşsan da seni duymazlar.'
+    Duzeltme 'Kayit' 'Mikrofon iznini aç (Ayarlar > Gizlilik > Mikrofon > Masaüstü uygulamaları)' @(
+        $mikKapali | ForEach-Object { [pscustomobject]@{ Yol = $_; Ad = 'Value'; Tip = 'String'; Deger = 'Allow' } })
+}
+else { Yaz 'TAMAM' 'Windows mikrofon izni açık' }
+
+# VPN ve sanal ağlar: WebRTC yanlış ağ kartından bağlanmaya çalışabilir veya UDP VPN'de kesilir.
+$vpnler = @(Get-NetAdapter | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceDescription -match 'TAP-|Wintun|WireGuard|ZeroTier|Hamachi|Radmin|Cloudflare WARP|OpenVPN|NordLynx|ProtonVPN|Tailscale|Fortinet|AnyConnect|Windscribe|Surfshark|ExpressVPN' })
+if ($vpnler.Count) {
+    Yaz 'UYARI' "Açık VPN/sanal ağ var: $(($vpnler | ForEach-Object { $_.InterfaceDescription }) -join ', '). Steam sesi bunun üzerinden bağlanmaya çalışıp kopabilir."
+    Elle 'Oynarken VPN ve sanal ağ programlarını (Radmin, Hamachi, ZeroTier, WARP vb.) kapat, sonra Steam''i yeniden başlat.'
+}
+
+# Üçüncü parti antivirüs/güvenlik duvarı: Steam'in UDP trafiğini kendi kurallarıyla kesebilir.
+$guvenlikUrunleri = @(@(Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct) + @(Get-CimInstance -Namespace root/SecurityCenter2 -ClassName FirewallProduct) |
+    ForEach-Object { $_.displayName } | Where-Object { $_ -and $_ -notmatch 'Defender' } | Sort-Object -Unique)
+if ($guvenlikUrunleri.Count) {
+    Yaz 'BİLGİ' "Üçüncü parti güvenlik programı var: $($guvenlikUrunleri -join ', '). Windows güvenlik duvarı düzgün olsa bile bu program Steam sesini engelleyebilir."
+    Elle "$($guvenlikUrunleri -join ' / ') ayarlarında Steam.exe ve steamwebhelper.exe için güvenlik duvarı istisnası ekle (veya oynarken kalkanı kısa süre kapatıp sesi dene)."
 }
 
 # ---------------- Ses aygıtı (kulaklık takınca donma) ----------------

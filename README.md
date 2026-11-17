@@ -60,9 +60,17 @@ Kasma genelde oyun sırasında ısınma ya da ağ yüzünden olur, o yüzden öl
 
 Panel açılınca **OMEN Gaming Hub** da açılır (kuruluysa). Oynamadan önce orada **Performance** modunu ve fan ayarını seç. Araç fan devrini kendisi değiştirmez; HP bunun için komut satırı sunmuyor.
 
-### Steam'i yeniden başlatmak
+### Steam sesli sohbet bağlanmıyorsa
 
-Steam sesli sohbet "Bağlanıyor"da kalırsa paneldeki **Steam'i yeniden başlat** düğmesi, onay aldıktan sonra Steam'i tamamen kapatıp açar. CS2 açıksa oyun da kapanır.
+Steam sesi kişiden kişiye bağlanır: gruptan **bir kişinin** ağı veya ayarı uymazsa o kişi kanala giremez. Bu yüzden sorun yaşayan **herkes paneli kendi bilgisayarında** çalıştırmalı. Panel şunlara bakar:
+
+- **NAT tipi:** Ağın dışarıdan doğrudan bağlantı kabul edip etmediği. "Simetrik" çıkan kişi sorunun kaynağıdır; çözümü modemde UPnP açmak ya da internet sağlayıcısından CGNAT'tan çıkarılmayı istemektir.
+- **UDP engeli:** Ses UDP ile gider; VPN, antivirüs ya da okul/yurt ağı bunu kesebilir.
+- **Windows güvenlik duvarı:** İzin penceresinde "İptal" denince Steam için engelleme kuralı oluşur. Panel bunu bulur ve tek tıkla düzeltir.
+- **Mikrofon izni:** Windows gizlilik ayarında masaüstü uygulamalarına mikrofon kapalıysa seni duymazlar. Panel açar.
+- **VPN, sanal ağ ve üçüncü parti antivirüs**
+
+**Steam sesini onar** düğmesi Steam'i tamamen kapatır, bozulabilen tarayıcı önbelleğini (`htmlcache`) temizler ve yeniden açar. Steam hesabından çıkış yapılmaz. CS2 açıksa oyun da kapanır.
 
 ### Sessiz mod
 
@@ -111,6 +119,8 @@ Paneldeki **Geri al** düğmesi ya da `CS-GeriAl.bat`, araçla değiştirilen t�
 | Açılışta başlayan ağır programları devre dışı bırakma | Evet | Evet |
 | Yanıltıcı adlı 2.4 GHz ağa otomatik bağlanmayı kapatma | Evet | Evet |
 | Gerçek 5 GHz ağa geçme | Hayır | Gerek yok |
+| Steam'i engelleyen güvenlik duvarı kurallarını kapatma, Steam'e gelen bağlantı izni verme | Evet | Evet |
+| Masaüstü uygulamalarına mikrofon iznini açma | Evet | Evet |
 | Arka plan programlarını kapatma | Hayır, yalnızca o oturum | Yeniden başlatınca geri gelir |
 
 Ayar değişiklikleri araçla aynı klasördeki `CS-Kontrol-yedek.json` dosyasına yedeklenir. Bu dosyayı silme; geri alma bu dosyadan yapılır.
